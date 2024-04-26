@@ -1,4 +1,5 @@
 import torch
+import os
 import torch.nn as nn
 import torch.nn.functional as F
 from model.modules.unet import Unet
@@ -17,7 +18,7 @@ class ModelNN(nn.Module):
         self.W = config["W"]
         self.down_channels = config["down_channels"]
         self.up_channels = config["up_channels"]
-        self.mid_channels = config["mid_channel"]
+        self.mid_channels = config["mid_channels"]
 
         self.unet = Unet(
             message_length=self.message_length,num_groups=self.num_groups,num_layers=self.num_layers,H=self.H,W=self.W,
@@ -26,7 +27,7 @@ class ModelNN(nn.Module):
 
         self.ext = Extractor(
             message_length=self.message_length,down_channels=self.down_channels,mid_channels=self.mid_channels,num_groups=self.num_groups,
-            num_layers=self.num_layers
+            num_layers=self.num_layers,im_channels=self.im_channels
         )
 
     def forward(self,x,message):
@@ -41,7 +42,7 @@ class Model:
         self.lr = train_config['lr']
         self.lpips_weight = train_config["lpips_weight"]
         self.disc_weight = train_config["disc_weight"]
-        self.message_recon_weight = config["message_recon_weight"]
+        self.message_recon_weight = train_config["message_recon_weight"]
 
         self.model = ModelNN(config=config).to(device=device)
         self.disc = NLayerDiscriminator().to(device=device)
@@ -62,16 +63,16 @@ class Model:
         with torch.enable_grad():
             self.optimizer_g.zero_grad()
 
-            recon_images,recon_message,loss = self.model(images,messages)
+            recon_images,recon_message,loss = self.model(images,messages.clone())
             disc_fake_pred = self.disc(recon_images)
             disc_fake_loss = F.mse_loss(disc_fake_pred, torch.ones_like(disc_fake_pred))
             disc_part = self.disc_weight * disc_fake_loss
             lpips_loss = self.lpips_weight*torch.mean(self.lpips(recon_images, images))
-            message_recon_loss = self.message_recon_weight*F.binary_cross_entropy(recon_message,messages)
-            losses["lpips_loss"] = lpips_loss
-            losses["disc_part"] = disc_part
-            losses["message_recon_loss"] = message_recon_loss
-            losses["image_recon_loss"] = loss
+            message_recon_loss = self.message_recon_weight*F.binary_cross_entropy_with_logits(recon_message,messages)
+            losses["lpips_loss"] = lpips_loss.item()
+            losses["disc_part"] = disc_part.item()
+            losses["message_recon_loss"] = message_recon_loss.item()
+            losses["image_recon_loss"] = loss.item()
 
             loss += message_recon_loss + lpips_loss + disc_part
             loss.backward()
@@ -87,7 +88,8 @@ class Model:
             disc_loss.backward()
             self.optimizer_d.step()
 
-            losses["disc_loss"] = disc_loss
+            losses["disc_loss"] = disc_loss.item()
+            losses["total"] = loss.item()
 
         return losses,(recon_images,recon_message)
     
@@ -101,16 +103,16 @@ class Model:
         losses = {}
         with torch.no_grad():
 
-            recon_images,recon_message,loss = self.model(images,messages)
+            recon_images,recon_message,loss = self.model(images,messages.clone())
             disc_fake_pred = self.disc(recon_images)
             disc_fake_loss = F.mse_loss(disc_fake_pred, torch.ones_like(disc_fake_pred))
             disc_part = self.disc_weight * disc_fake_loss
             lpips_loss = self.lpips_weight*torch.mean(self.lpips(recon_images, images))
-            message_recon_loss = self.message_recon_weight*F.binary_cross_entropy(recon_message,messages)
-            losses["lpips_loss"] = lpips_loss
-            losses["disc_part"] = disc_part
-            losses["message_recon_loss"] = message_recon_loss
-            losses["image_recon_loss"] = loss
+            message_recon_loss = self.message_recon_weight*F.binary_cross_entropy_with_logits(recon_message,messages)
+            losses["lpips_loss"] = lpips_loss.item()
+            losses["disc_part"] = disc_part.item()
+            losses["message_recon_loss"] = message_recon_loss.item()
+            losses["image_recon_loss"] = loss.item()
 
             loss += message_recon_loss + lpips_loss + disc_part
 
@@ -120,6 +122,15 @@ class Model:
             disc_real_loss = F.mse_loss(disc_real_pred, torch.ones_like(disc_real_pred))
             disc_loss = (disc_fake_loss + disc_real_loss) / 2
 
-            losses["disc_loss"] = disc_loss
+            losses["disc_loss"] = disc_loss.item()
+            losses["total"] = loss.item()
         
         return losses,(recon_images,recon_message)
+    
+    def save(self,path,num):
+        torch.save(self.model,os.path.join(path,f"model_{num}.pth"))
+        torch.save(self.disc,os.path.join(path,f"model_{num}.pth"))
+
+    def load(self,path,num):
+        self.model.load_state_dict(torch.load(os.path.join(path,f"model_{num}.pth")))
+        self.disc.load_state_dict(torch.load(os.path.join(path,f"model_{num}.pth")))
