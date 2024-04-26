@@ -129,7 +129,7 @@ class Model:
     
     def save(self,path,num):
         torch.save(self.model,os.path.join(path,f"model_{num}.pth"))
-        torch.save(self.disc,os.path.join(path,f"model_{num}.pth"))
+        torch.save(self.disc,os.path.join(path,f"disc_{num}.pth"))
 
     def load(self,path,num):
         self.model.load_state_dict(torch.load(os.path.join(path,f"model_{num}.pth")))
