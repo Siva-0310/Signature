@@ -133,4 +133,4 @@ class Model:
 
     def load(self,path,num):
         self.model.load_state_dict(torch.load(os.path.join(path,f"model_{num}.pth")))
-        self.disc.load_state_dict(torch.load(os.path.join(path,f"model_{num}.pth")))
+        self.disc.load_state_dict(torch.load(os.path.join(path,f"disc_{num}.pth")))
