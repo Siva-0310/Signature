@@ -4,17 +4,17 @@ import torch.nn.functional as F
 from model.modules.blocks import DownSample,MidBlock,UpSample,ResNet
 
 class Unet(nn.Module):
-    def __init__(self,config) -> None:
+    def __init__(self,H,W,down_channels,mid_channels,up_channels,num_layers,im_channels,num_groups,message_length) -> None:
         super(Unet,self).__init__()
-        self.H = config["H"]
-        self.W = config["W"]
-        self.down_channels = config["down_channels"]
-        self.mid_channels = config["mid_channels"]
-        self.up_channels = config["up_channels"]
-        self.num_layers = config["num_layers"]
-        self.im_channels = config["im_channels"]
-        self.num_groups = config["num_groups"]
-        self.message_length = config["message_length"]
+        self.H = H
+        self.W = W
+        self.down_channels = down_channels
+        self.mid_channels = mid_channels
+        self.up_channels = up_channels
+        self.num_layers = num_layers
+        self.im_channels = im_channels
+        self.num_groups = num_groups
+        self.message_length = message_length
 
         self.conv_in = nn.Conv2d(in_channels=self.im_channels,out_channels=self.down_channels[0],kernel_size=1,stride=1)
 
