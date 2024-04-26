@@ -31,7 +31,7 @@ class Unet(nn.Module):
                 MidBlock(in_channels=self.mid_channels[i],out_channels=self.mid_channels[i+1],
                          num_layers=self.num_layers,num_groups=self.num_groups)
             )
-        self.mid = ResNet(in_channels=self.mid_channels[-1]+self.message_length,out_channels=self.mid_channels[-1],num_groups=1)
+        self.mid = ResNet(in_channels=self.mid_channels[-1]+self.message_length,out_channels=self.mid_channels[-1],num_groups=self.num_groups)
         self.mid2 = nn.ModuleList([])
         for i in range(len(self.mid_channels)-1,0,-1):
             self.mid2.append(
