@@ -6,9 +6,10 @@ from model.modules.unet import Unet
 from model.modules.extractor import Extractor
 from model.discriminator.model import NLayerDiscriminator
 from model.losses.lpips import LPIPS
+from model.noise_layers.noiser import Noiser
 
 class ModelNN(nn.Module):
-    def __init__(self,config) -> None:
+    def __init__(self,config,noiser:Noiser) -> None:
         super(ModelNN,self).__init__()
         self.message_length = config["message_length"]
         self.im_channels = config["im_channels"]
@@ -25,6 +26,8 @@ class ModelNN(nn.Module):
             im_channels=self.im_channels,down_channels=self.down_channels,up_channels=self.up_channels,mid_channels=self.mid_channels
         )
 
+        self.noiser = noiser
+
         self.ext = Extractor(
             message_length=self.message_length,down_channels=self.down_channels,mid_channels=self.mid_channels,num_groups=self.num_groups,
             num_layers=self.num_layers,im_channels=self.im_channels
@@ -32,19 +35,20 @@ class ModelNN(nn.Module):
 
     def forward(self,x,message):
         out,loss = self.unet(x,message)
-        recon_message = self.ext(out)
-        return out,recon_message,loss
+        noised_out = self.noiser(out)
+        recon_message = self.ext(noised_out)
+        return out,recon_message,loss,noised_out
     
 
 class Model:
-    def __init__(self,config,train_config,device) -> None:
+    def __init__(self,config,train_config,device,noiser) -> None:
 
         self.lr = train_config['lr']
         self.lpips_weight = train_config["lpips_weight"]
         self.disc_weight = train_config["disc_weight"]
         self.message_recon_weight = train_config["message_recon_weight"]
 
-        self.model = ModelNN(config=config).to(device=device)
+        self.model = ModelNN(config=config,noiser=noiser).to(device=device)
         self.disc = NLayerDiscriminator().to(device=device)
         self.lpips = LPIPS().eval().to(device=device)
         self.optimizer_d = torch.optim.Adam(self.disc.parameters(),lr=self.lr)
@@ -63,7 +67,7 @@ class Model:
         with torch.enable_grad():
             self.optimizer_g.zero_grad()
 
-            recon_images,recon_message,loss = self.model(images,messages.clone())
+            recon_images,recon_message,loss,noised_img = self.model(images,messages.clone())
             disc_fake_pred = self.disc(recon_images)
             disc_fake_loss = F.mse_loss(disc_fake_pred, torch.ones_like(disc_fake_pred))
             disc_part = self.disc_weight * disc_fake_loss
@@ -91,7 +95,7 @@ class Model:
             losses["disc_loss"] = disc_loss.item()
             losses["total"] = loss.item()
 
-        return losses,(recon_images,recon_message)
+        return losses,(recon_images,recon_message,noised_img)
     
     def validate_on_batch(self, batch: list):
 
@@ -103,7 +107,7 @@ class Model:
         losses = {}
         with torch.no_grad():
 
-            recon_images,recon_message,loss = self.model(images,messages.clone())
+            recon_images,recon_message,loss,noised_img = self.model(images,messages.clone())
             disc_fake_pred = self.disc(recon_images)
             disc_fake_loss = F.mse_loss(disc_fake_pred, torch.ones_like(disc_fake_pred))
             disc_part = self.disc_weight * disc_fake_loss
@@ -125,7 +129,7 @@ class Model:
             losses["disc_loss"] = disc_loss.item()
             losses["total"] = loss.item()
         
-        return losses,(recon_images,recon_message)
+        return losses,(recon_images,recon_message,noised_img)
     
     def save(self,path,num):
         torch.save(self.model,os.path.join(path,f"model_{num}.pth"))
@@ -142,3 +146,8 @@ class Model:
     def load_state_dict(self,path,num,device):
         self.model.load_state_dict(torch.load(os.path.join(path,f"model_{num}.pth"),map_location=device))
         self.disc.load_state_dict(torch.load(os.path.join(path,f"disc_{num}.pth"),map_location=device))
+
+    def predict(self,x:torch.Tensor):
+        x = F.sigmoid(x)
+        x = x >= 0.5
+        return x.int()
