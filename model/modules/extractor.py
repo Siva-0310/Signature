@@ -29,7 +29,7 @@ class Extractor(nn.Module):
                          num_layers=self.num_layers)
             )
         self.out_layer =  nn.Sequential(
-            ResNet(in_channels=self.mid_channels[-1],out_channels=self.message_length,num_groups=self.num_groups),
+            ResNet(in_channels=self.mid_channels[-1],out_channels=self.message_length,num_groups=1),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
         )
         self.message_layer = nn.Sequential(
