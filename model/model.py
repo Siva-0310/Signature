@@ -131,6 +131,14 @@ class Model:
         torch.save(self.model,os.path.join(path,f"model_{num}.pth"))
         torch.save(self.disc,os.path.join(path,f"disc_{num}.pth"))
 
-    def load(self,path,num):
-        self.model.load_state_dict(torch.load(os.path.join(path,f"model_{num}.pth")))
-        self.disc.load_state_dict(torch.load(os.path.join(path,f"disc_{num}.pth")))
+    def load(self,path,num,device):
+        self.model = torch.load(os.path.join(path,f"model_{num}.pth"),map_location=device)
+        self.disc = torch.load(os.path.join(path,f"disc_{num}.pth"),map_location=device)
+    
+    def save_state_dict(self,path,num):
+        torch.save(self.model.state_dict(),os.path.join(path,f"model_{num}.pth"))
+        torch.save(self.disc.state_dict(),os.path.join(path,f"disc_{num}.pth"))
+    
+    def load_state_dict(self,path,num,device):
+        self.model.load_state_dict(torch.load(os.path.join(path,f"model_{num}.pth"),map_location=device))
+        self.disc.load_state_dict(torch.load(os.path.join(path,f"disc_{num}.pth"),map_location=device))
