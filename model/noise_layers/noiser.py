@@ -81,3 +81,10 @@ class Noiser(nn.Module):
         input = self.jitter(input)
         input = self.hflip(input)
         return input
+
+class IdentityNoiser(nn.Module):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+    
+    def forward(self,x):
+        return x
