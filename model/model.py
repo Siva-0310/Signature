@@ -2,11 +2,12 @@ import torch
 import os
 import torch.nn as nn
 import torch.nn.functional as F
-from model.modules.unet import Unet
-from model.modules.extractor import Extractor
+# from model.modules.unet import Unet
+# from model.modules.extractor import Extractor
 from model.discriminator.model import NLayerDiscriminator
 from model.losses.lpips import LPIPS
 from model.noise_layers.noiser import Noiser
+from model.new import Unet,Extractor
 
 class ModelNN(nn.Module):
     def __init__(self,config,noiser:Noiser) -> None:
@@ -22,15 +23,15 @@ class ModelNN(nn.Module):
         self.mid_channels = config["mid_channels"]
 
         self.unet = Unet(
-            message_length=self.message_length,num_groups=self.num_groups,num_layers=self.num_layers,H=self.H,W=self.W,
-            im_channels=self.im_channels,down_channels=self.down_channels,up_channels=self.up_channels,mid_channels=self.mid_channels
+            message_length=self.message_length,num_groups=self.num_groups,H=self.H,W=self.W,
+            im_channels=self.im_channels,channels=self.down_channels,depth=len(self.down_channels)
         )
 
         self.noiser = noiser
 
         self.ext = Extractor(
-            message_length=self.message_length,down_channels=self.down_channels,mid_channels=self.mid_channels,num_groups=self.num_groups,
-            num_layers=self.num_layers,im_channels=self.im_channels
+            message_length=self.message_length,num_groups=self.num_groups,H=self.H,W=self.W,
+            im_channels=self.im_channels,channels=self.down_channels,depth=len(self.down_channels)
         )
 
     def forward(self,x,message):
