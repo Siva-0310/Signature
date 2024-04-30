@@ -59,7 +59,7 @@ class Unet(nn.Module):
         self.mid = ConvGroupSiLU(in_channels=channels[-1]+message_length,out_channels=channels[-1],num_groups=1)
 
         self.up_sample = nn.ModuleList([
-            DownSample(in_channels=channels[i]*2,out_channels=channels[i-1],num_groups=num_groups)
+            UpSample(in_channels=channels[i]*2,out_channels=channels[i-1],num_groups=num_groups)
             for i in range(depth-1,0,-1)
         ])
 
