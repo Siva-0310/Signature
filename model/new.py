@@ -80,7 +80,6 @@ class Unet(nn.Module):
             nn.GroupNorm(num_groups=num_groups,num_channels=channels[0]),
             nn.SiLU(),
             nn.Conv2d(in_channels=channels[0],out_channels=im_channels,kernel_size=1),
-            nn.Sigmoid(),
         )
 
     def info(self,x:torch.Tensor) -> torch.Tensor:
