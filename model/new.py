@@ -7,14 +7,27 @@ class ConvGroupSiLU(nn.Module):
     def __init__(self,in_channels:int,out_channels:int,num_groups:int) -> None:
         super(ConvGroupSiLU,self).__init__()
 
-        self.layer = nn.Sequential(
+        self.layer1 = nn.Sequential(
             nn.GroupNorm(num_channels=in_channels,num_groups=num_groups),
             nn.SiLU(),
             nn.Conv2d(in_channels=in_channels,out_channels=out_channels,kernel_size=3,padding=1,stride=1),
         )
 
+        self.layer2 = nn.Sequential(
+            nn.GroupNorm(num_channels=out_channels,num_groups=num_groups),
+            nn.SiLU(),
+            nn.Conv2d(in_channels=out_channels,out_channels=out_channels,kernel_size=3,padding=1,stride=1),
+        )
+
+        self.residual = nn.Conv2d(in_channels=in_channels,out_channels=out_channels,kernel_size=1) if in_channels != out_channels else nn.Identity()
+
+
     def forward(self,x:torch.Tensor) -> torch.Tensor:
-        return self.layer(x)
+        out = x
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = out + self.residual(x)
+        return out
     
 class DownSample(nn.Module):
     def __init__(self,in_channels:int,out_channels:int,num_groups:int) -> None:
@@ -63,8 +76,12 @@ class Unet(nn.Module):
             for i in range(depth-1,0,-1)
         ])
 
-        self.conv_out = ConvGroupSiLU(in_channels=channels[0],out_channels=im_channels,num_groups=num_groups,)
-        self.out_activation = nn.Sigmoid()
+        self.conv_out = nn.Sequential(
+            nn.GroupNorm(num_groups=num_groups,num_channels=channels[0]),
+            nn.SiLU(),
+            nn.Conv2d(in_channels=channels[0],out_channels=im_channels,kernel_size=1),
+            nn.Sigmoid(),
+        )
 
     def info(self,x:torch.Tensor) -> torch.Tensor:
         x.unsqueeze_(-1)
@@ -84,7 +101,6 @@ class Unet(nn.Module):
             out = torch.cat([out,downsample.pop()],dim=1)
             out = block(out)
         out = self.conv_out(out)
-        out = self.out_activation(out)
         return out,self.loss(recon_im=out,im=x)
     
     def loss(self,recon_im:torch.Tensor,im:torch.Tensor) -> torch.Tensor:
