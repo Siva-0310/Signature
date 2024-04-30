@@ -64,6 +64,7 @@ class Unet(nn.Module):
         ])
 
         self.conv_out = ConvGroupSiLU(in_channels=channels[0],out_channels=im_channels,num_groups=num_groups,)
+        self.out_activation = nn.Sigmoid()
 
     def info(self,x:torch.Tensor) -> torch.Tensor:
         x.unsqueeze_(-1)
@@ -83,6 +84,7 @@ class Unet(nn.Module):
             out = torch.cat([out,downsample.pop()],dim=1)
             out = block(out)
         out = self.conv_out(out)
+        out = self.out_activation(out)
         return out,self.loss(recon_im=out,im=x)
     
     def loss(self,recon_im:torch.Tensor,im:torch.Tensor) -> torch.Tensor:
