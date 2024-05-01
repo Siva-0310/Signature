@@ -77,9 +77,9 @@ class Unet(nn.Module):
         ])
 
         self.conv_out = nn.Sequential(
-            nn.GroupNorm(num_groups=num_groups,num_channels=channels[0]),
+            nn.GroupNorm(num_groups=num_groups,num_channels=channels[0]*2),
             nn.SiLU(),
-            nn.Conv2d(in_channels=channels[0],out_channels=im_channels,kernel_size=1),
+            nn.Conv2d(in_channels=channels[0]*2,out_channels=im_channels,kernel_size=1),
         )
 
     def info(self,x:torch.Tensor) -> torch.Tensor:
@@ -90,7 +90,7 @@ class Unet(nn.Module):
     def forward(self,x:torch.Tensor,message:torch.Tensor) -> torch.Tensor:
         out = x
         out = self.conv_in(out)
-        downsample = []
+        downsample = [out]
         for block in self.down_sample:
             out = block(out)
             downsample.append(out)
@@ -99,6 +99,7 @@ class Unet(nn.Module):
         for block in self.up_sample:
             out = torch.cat([out,downsample.pop()],dim=1)
             out = block(out)
+        out = torch.cat([out,downsample.pop()],dim=1)
         out = self.conv_out(out)
         return out,self.loss(recon_im=out,im=x)
     
