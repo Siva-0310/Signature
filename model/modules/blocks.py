@@ -1,153 +1,137 @@
-import torch.nn as nn
+
 import torch
+import torch.nn as nn 
+import torch.nn.functional as F
 
-class DownSample(nn.Module):
-    def __init__(self,in_channels:int,out_channels:int,num_groups:int,num_layers:int) -> None:
-        super(DownSample,self).__init__()
-        
-        self.resnets_layers = nn.Sequential(
-            *[
-                ResNet(in_channels=in_channels if i == 0 else out_channels,out_channels=out_channels,num_groups=num_groups)
-                for i in range(num_layers)
-            ]
-        )
-
-        self.down_sample = nn.Conv2d(in_channels=out_channels,out_channels=out_channels,kernel_size=4,stride=2,padding=1)
-
-    def forward(self,x:torch.Tensor) -> torch.Tensor:
-        out = x
-        out = self.resnets_layers(out)
-        return self.down_sample(out)
-    
-class UpSample(nn.Module):
-    def __init__(self, in_channels:int,out_channels:int,num_groups:int,num_layers:int) -> None:
-        super(UpSample,self).__init__()
-
-        self.resnets_layers = nn.Sequential(
-            *[
-                ResNet(in_channels=in_channels if i == 0 else out_channels,out_channels=out_channels,num_groups=num_groups)
-                for i in range(num_layers)
-            ]
-        )
-
-        self.up_sample = nn.ConvTranspose2d(in_channels,in_channels,4,2,1)
-
-    def forward(self,x:torch.Tensor) -> torch.Tensor:
-        out = self.up_sample(x)
-        return self.resnets_layers(out)
-    
-class MidBlock(nn.Module):
-    def __init__(self,in_channels:int,out_channels:int,num_layers:int,num_groups:int) -> None:
-        super(MidBlock,self).__init__()
-
-        self.resnet_1 = ResNet(in_channels=in_channels,out_channels=out_channels,num_groups=num_groups)
-        self.layers = nn.Sequential(
-            *[
-                nn.Sequential(
-                    AttnBlock(num_groups=num_groups,in_channels=out_channels),
-                    ResNet(in_channels=out_channels,out_channels=out_channels,num_groups=num_groups)
-                )
-                for _ in range(num_layers)
-            ]
-        )
-    def forward(self,x:torch.Tensor) -> torch.Tensor:
-        out = self.resnet_1(x)
-        return self.layers(out)
-    
-class ResNet(nn.Module):
+class ConvGroupSiLU(nn.Module):
     def __init__(self,in_channels:int,out_channels:int,num_groups:int) -> None:
-        super(ResNet,self).__init__()
+        super(ConvGroupSiLU,self).__init__()
 
-        self.resnet_conv_1 = nn.Sequential(
-            nn.GroupNorm(num_groups=num_groups,num_channels=in_channels),
+        self.layer1 = nn.Sequential(
+            nn.GroupNorm(num_channels=in_channels,num_groups=num_groups),
             nn.SiLU(),
-            nn.Conv2d(in_channels=in_channels,out_channels=out_channels,kernel_size=3,stride=1,padding=1)
+            nn.Conv2d(in_channels=in_channels,out_channels=out_channels,kernel_size=3,padding=1,stride=1),
         )
 
-        self.resnet_conv_2 = nn.Sequential(
-                nn.GroupNorm(num_groups=num_groups,num_channels=out_channels),
-                nn.SiLU(),
-                nn.Conv2d(in_channels=out_channels,out_channels=out_channels,kernel_size=3,stride=1,padding=1)
-            )
+        self.layer2 = nn.Sequential(
+            nn.GroupNorm(num_channels=out_channels,num_groups=num_groups),
+            nn.SiLU(),
+            nn.Conv2d(in_channels=out_channels,out_channels=out_channels,kernel_size=3,padding=1,stride=1),
+        )
+
         self.residual = nn.Conv2d(in_channels=in_channels,out_channels=out_channels,kernel_size=1) if in_channels != out_channels else nn.Identity()
 
+
     def forward(self,x:torch.Tensor) -> torch.Tensor:
         out = x
-        out = self.resnet_conv_1(out)
-        out = self.resnet_conv_2(out)
-        return out + self.residual(x)
-
-
-# class Attention(nn.Module):
-#     def __init__(self, num_groups:int,out_channels:int,num_heads:int) -> None:
-#         super(Attention,self).__init__()
-
-#         self.attention_norm = nn.GroupNorm(num_groups=num_groups,num_channels=out_channels)
-#         self.attention_layer = nn.MultiheadAttention(num_heads=num_heads,embed_dim=out_channels,batch_first=True)
-
-#     def forward(self,x:torch.Tensor) -> torch.Tensor:
-#         out = x
-
-#         batch_size, channels, h, w = out.shape
-#         in_attn = out.reshape(batch_size, channels, h * w)
-#         in_attn = self.attention_norm(in_attn)
-#         in_attn = in_attn.transpose(1, 2)
-#         out_attn, _ = self.attention_layer(in_attn, in_attn, in_attn)
-#         out_attn = out_attn.transpose(1, 2).reshape(batch_size, channels, h, w)
-#         out = out + out_attn
-
-#         return out
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = out + self.residual(x)
+        return out
     
-class AttnBlock(nn.Module):
-    def __init__(self, in_channels,num_groups):
-        super().__init__()
-        self.in_channels = in_channels
+class DownSample(nn.Module):
+    def __init__(self,in_channels:int,out_channels:int,num_groups:int) -> None:
+        super(DownSample,self).__init__()
 
-        self.norm = nn.GroupNorm(num_groups=num_groups,num_channels=in_channels)
-        self.q = torch.nn.Conv2d(in_channels,
-                                 in_channels,
-                                 kernel_size=1,
-                                 stride=1,
-                                 padding=0)
-        self.k = torch.nn.Conv2d(in_channels,
-                                 in_channels,
-                                 kernel_size=1,
-                                 stride=1,
-                                 padding=0)
-        self.v = torch.nn.Conv2d(in_channels,
-                                 in_channels,
-                                 kernel_size=1,
-                                 stride=1,
-                                 padding=0)
-        self.proj_out = torch.nn.Conv2d(in_channels,
-                                        in_channels,
-                                        kernel_size=1,
-                                        stride=1,
-                                        padding=0)
+        self.layer = nn.Sequential(
+            ConvGroupSiLU(in_channels=in_channels,out_channels=out_channels,num_groups=num_groups),
+            nn.Conv2d(in_channels=out_channels,out_channels=out_channels,kernel_size=4,stride=2,padding=1)
+        )
 
+    def forward(self,x:torch.Tensor) -> torch.Tensor:
+        return self.layer(x)
+    
 
-    def forward(self, x):
-        h_ = x
-        h_ = self.norm(h_)
-        q = self.q(h_)
-        k = self.k(h_)
-        v = self.v(h_)
+class UpSample(nn.Module):
+    def __init__(self,in_channels:int,out_channels:int,num_groups:int) -> None:
+        super(UpSample,self).__init__()
 
-        # compute attention
-        b,c,h,w = q.shape
-        q = q.reshape(b,c,h*w)
-        q = q.permute(0,2,1)   # b,hw,c
-        k = k.reshape(b,c,h*w) # b,c,hw
-        w_ = torch.bmm(q,k)     # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
-        w_ = w_ * (int(c)**(-0.5))
-        w_ = torch.nn.functional.softmax(w_, dim=2)
+        self.layer = nn.Sequential(
+            nn.ConvTranspose2d(in_channels,in_channels,4,2,1),
+            ConvGroupSiLU(in_channels=in_channels,out_channels=out_channels,num_groups=num_groups),
+        )
+    
+    def forward(self,x:torch.Tensor) -> torch.Tensor:
+        return self.layer(x)
+    
 
-        # attend to values
-        v = v.reshape(b,c,h*w)
-        w_ = w_.permute(0,2,1)   # b,hw,hw (first hw of k, second of q)
-        h_ = torch.bmm(v,w_)     # b, c,hw (hw of q) h_[b,c,j] = sum_i v[b,c,i] w_[b,i,j]
-        h_ = h_.reshape(b,c,h,w)
+class Unet(nn.Module):
+    def __init__(self,depth:int,channels:list,num_groups:int,im_channels:int,message_length:int,H:int,W:int) -> None:
+        super(Unet,self).__init__()
+        
+        self.H = H
+        self.W = W
 
-        h_ = self.proj_out(h_)
+        self.conv_in = nn.Conv2d(in_channels=im_channels,out_channels=channels[0],kernel_size=1)
 
-        return x+h_
+        self.down_sample = nn.ModuleList([
+            DownSample(in_channels=channels[i],out_channels=channels[i+1],num_groups=num_groups)
+            for i in range(depth-1)
+        ])
+
+        self.mid = ConvGroupSiLU(in_channels=channels[-1]+message_length,out_channels=channels[-1],num_groups=1)
+
+        self.up_sample = nn.ModuleList([
+            UpSample(in_channels=channels[i]*2,out_channels=channels[i-1],num_groups=num_groups)
+            for i in range(depth-1,0,-1)
+        ])
+
+        self.conv_out = nn.Sequential(
+            nn.GroupNorm(num_groups=num_groups,num_channels=channels[0]*2),
+            nn.SiLU(),
+            nn.Conv2d(in_channels=channels[0]*2,out_channels=im_channels,kernel_size=1),
+        )
+
+    def info(self,x:torch.Tensor) -> torch.Tensor:
+        x.unsqueeze_(-1)
+        x.unsqueeze_(-1)
+        return x.expand(-1,-1,self.H,self.W)
+
+    def forward(self,x:torch.Tensor,message:torch.Tensor) -> torch.Tensor:
+        out = x
+        out = self.conv_in(out)
+        downsample = [out]
+        for block in self.down_sample:
+            out = block(out)
+            downsample.append(out)
+        out = torch.cat([out,self.info(message)],dim=1)
+        out = self.mid(out)
+        for block in self.up_sample:
+            out = torch.cat([out,downsample.pop()],dim=1)
+            out = block(out)
+        out = torch.cat([out,downsample.pop()],dim=1)
+        out = self.conv_out(out)
+        return out,self.loss(recon_im=out,im=x)
+    
+    def loss(self,recon_im:torch.Tensor,im:torch.Tensor) -> torch.Tensor:
+        return F.mse_loss(recon_im,im)
+    
+class Extractor(nn.Module):
+    def __init__(self,depth:int,channels:list,num_groups:int,im_channels:int,message_length:int,H:int,W:int) -> None:
+        super(Extractor,self).__init__()
+
+        self.H = H
+        self.W = W
+
+        self.conv_in = nn.Conv2d(in_channels=im_channels,out_channels=channels[0],kernel_size=1)
+
+        self.down_sample = nn.ModuleList([
+            DownSample(in_channels=channels[i],out_channels=channels[i+1],num_groups=num_groups)
+            for i in range(depth-1)
+        ])
+
+        self.out_layer =  nn.Sequential(
+            ConvGroupSiLU(in_channels=channels[-1],out_channels=message_length,num_groups=1),
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+        )
+        self.message_layer = nn.Sequential(
+              nn.Linear(message_length,message_length),
+        )
+    def forward(self,x:torch.Tensor) -> torch.Tensor:
+        out = x
+        out = self.conv_in(out)
+        for i in self.down_sample:
+            out = i(out)
+        out = self.out_layer(out)
+        out.squeeze_(3).squeeze_(2)
+        return self.message_layer(out)

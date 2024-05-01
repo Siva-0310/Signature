@@ -2,12 +2,10 @@ import torch
 import os
 import torch.nn as nn
 import torch.nn.functional as F
-# from model.modules.unet import Unet
-# from model.modules.extractor import Extractor
 from model.discriminator.model import NLayerDiscriminator
 from model.losses.lpips import LPIPS
 from model.noise_layers.noiser import Noiser
-from model.new import Unet,Extractor
+from model.modules.blocks import Unet,Extractor
 
 class ModelNN(nn.Module):
     def __init__(self,config,noiser:Noiser) -> None:
@@ -15,23 +13,20 @@ class ModelNN(nn.Module):
         self.message_length = config["message_length"]
         self.im_channels = config["im_channels"]
         self.num_groups = config["num_groups"]
-        self.num_layers = config["num_layers"]
         self.H = config["H"]
         self.W = config["W"]
-        self.down_channels = config["down_channels"]
-        self.up_channels = config["up_channels"]
-        self.mid_channels = config["mid_channels"]
+        self.channels = config["channels"]
 
         self.unet = Unet(
             message_length=self.message_length,num_groups=self.num_groups,H=self.H,W=self.W,
-            im_channels=self.im_channels,channels=self.down_channels,depth=len(self.down_channels)
+            im_channels=self.im_channels,channels=self.channels,depth=len(self.channels)
         )
 
         self.noiser = noiser
 
         self.ext = Extractor(
             message_length=self.message_length,num_groups=self.num_groups,H=self.H,W=self.W,
-            im_channels=self.im_channels,channels=self.down_channels,depth=len(self.down_channels)
+            im_channels=self.im_channels,channels=self.channels,depth=len(self.channels)
         )
 
     def forward(self,x,message):
@@ -131,14 +126,6 @@ class Model:
             losses["total"] = loss.item()
         
         return losses,(recon_images,recon_message,noised_img)
-    
-    def save(self,path,num):
-        torch.save(self.model,os.path.join(path,f"model_{num}.pth"))
-        torch.save(self.disc,os.path.join(path,f"disc_{num}.pth"))
-
-    def load(self,path,num,device):
-        self.model = torch.load(os.path.join(path,f"model_{num}.pth"),map_location=device)
-        self.disc = torch.load(os.path.join(path,f"disc_{num}.pth"),map_location=device)
     
     def save_state_dict(self,path,num):
         torch.save(self.model.state_dict(),os.path.join(path,f"model_{num}.pth"))
