@@ -54,21 +54,20 @@ if __name__ == "__main__":
     }
     val = 1000
     model = Model(config=enc_config,train_config=config,device=device,noiser=IdentityNoiser())
-    model.load_state_dict("experiments/no-noise/models/",num=60,device=device)
+    model.load_state_dict("/Users/siva/Code/Signature/experiments/no-noise/models/",num=100,device=device)
 
-    torch.manual_seed(42)
-    dataset  = ImageDataSet("train2014/",transform=transform)
-    dataloader = DataLoader(dataset=dataset,batch_size=config["batch_size"],sampler=RandomSampler(val),num_workers=4)
+    dataset  = ImageDataSet("/Users/siva/Code/Signature/train2014/",transform=transform)
+    dataloader = DataLoader(dataset=dataset,batch_size=config["batch_size"],sampler=RandomSampler(range(val)),num_workers=4)
 
 
     totalpsnr = 0
     accuracy = 0
 
-    i = 1
+    i = 0
     for images in dataloader:
         images = images.to(device)
         message = torch.Tensor(np.random.choice([0, 1], (images.shape[0], 30))).to(device)
-        losses, (recon_images, recon_message,_) = model.train_on_batch([images, message])
+        losses, (recon_images, recon_message,_) = model.validate_on_batch([images, message])
         totalpsnr += 10*np.log10(1/losses["image_recon_loss"])
         recon_message = model.predict(recon_message)
         message = message.int()
