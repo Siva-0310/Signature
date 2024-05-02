@@ -63,4 +63,3 @@ This project is currently under development, and future updates will include det
 ### Note:
 
 The project setup and structure are in development stages, and documentation regarding setup, usage, and contributions will be provided in subsequent updates. This documentation primarily focuses on the network architecture and its components as the core of ongoing research in image watermarking using deep learning techniques.
-Certainly! Below is a sample README file for your project which includes an overview, a description of the network, and references to related work.
