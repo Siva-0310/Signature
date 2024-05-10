@@ -4,7 +4,7 @@ from typing import List, Tuple
 class ModelConfig:
     def __init__(self, H: int, W: int, channels: List[int], depth: int,
                  ext_channels: List[int], ext_depth: int, im_channels: int, 
-                 message_length: int, name: str, noiser: str) -> None:
+                 message_length: int, name: str, noiser: str,num_groups:int) -> None:
         self.name = name
         self.H = H
         self.W = W
@@ -15,12 +15,14 @@ class ModelConfig:
         self.im_channels = im_channels
         self.message_length = message_length
         self.noiser = noiser
+        self.num_groups = num_groups
 
     def __str__(self) -> str:
         return (f"ModelConfig(name={self.name}, H={self.H}, W={self.W}, "
                 f"channels={self.channels}, depth={self.depth}, "
                 f"ext_channels={self.ext_channels}, ext_depth={self.ext_depth}, "
                 f"im_channels={self.im_channels}, message_length={self.message_length}, "
+                f"num_groups={self.num_groups}, "
                 f"noiser={self.noiser})")
 
 class TrainConfig:
