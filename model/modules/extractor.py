@@ -24,7 +24,7 @@ class Extractor(nn.Module):
     def forward(self,x:torch.Tensor) -> torch.Tensor:
         out = x
         out = self.in_layer(out)
-        out = self.layer(out)
+        out = self.layers(out)
         out = self.out_layer(out)
         out.squeeze_(3).squeeze_(2)
         return self.message_layer(out)
