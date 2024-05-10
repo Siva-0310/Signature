@@ -4,7 +4,7 @@ from model.config import ModelConfig
 from model.modules.unet import Unet
 from model.modules.extractor import Extractor
 from model.noise_layers.noiser import Noiser
-from typing import List
+from typing import List,Tuple
 
 class EncoderDecoder(nn.Module):
     def __init__(self,config:ModelConfig) -> None:
@@ -19,7 +19,7 @@ class EncoderDecoder(nn.Module):
         
         self.noiser = Noiser(type_=config.noiser)
 
-    def forward(self,images:torch.Tensor,messages:torch.Tensor) -> List[torch.Tensor,torch.Tensor,torch.Tensor]:
+    def forward(self,images:torch.Tensor,messages:torch.Tensor) -> Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
         out = images
         recon_images = self.unet(out,messages)
         noised_images = self.noiser(recon_images)
