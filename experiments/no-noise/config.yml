@@ -1,0 +1,19 @@
+model:
+  name: no-noise
+  im_channels: 3
+  ext_channels: [32,64,128,256]
+  ext_depth: 4
+  channels: [32,64,128,256]
+  depth: 4
+  message_length: 30
+  H: 16
+  W: 16
+  noiser: identity
+  num_groups: 32
+
+train:
+  lr: 0.00001
+  batch: 12
+  epochs: 100
+  lpips: 0.5
+  disc: 0.5
