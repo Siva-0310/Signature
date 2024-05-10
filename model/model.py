@@ -16,6 +16,7 @@ class ModelNN(nn.Module):
         self.H = config["H"]
         self.W = config["W"]
         self.channels = config["channels"]
+        self.ext_channels = config["ext_channels"]
 
         self.unet = Unet(
             message_length=self.message_length,num_groups=self.num_groups,H=self.H,W=self.W,
@@ -26,7 +27,7 @@ class ModelNN(nn.Module):
 
         self.ext = Extractor(
             message_length=self.message_length,num_groups=self.num_groups,H=self.H,W=self.W,
-            im_channels=self.im_channels,channels=self.channels,depth=len(self.channels)
+            im_channels=self.im_channels,channels=self.ext_channels,depth=len(self.channels)
         )
 
     def forward(self,x,message):
@@ -35,6 +36,12 @@ class ModelNN(nn.Module):
         recon_message = self.ext(noised_out)
         return out,recon_message,loss,noised_out
     
+    def add_watermark(self,x,message):
+        recon_image,loss = self.unet(x,message)
+        return recon_image,loss
+    
+    def get_message(self,x):
+        return self.ext(x)
 
 class Model:
     def __init__(self,config,train_config,device,noiser) -> None:
@@ -92,6 +99,17 @@ class Model:
             losses["total"] = loss.item()
 
         return losses,(recon_images,recon_message,noised_img)
+    
+    def add_watermark(self,batch:list):
+        images,messages = batch
+        with torch.no_grad():
+            recon_image,loss = self.model.add_watermark(images,messages)
+        return recon_image,loss
+    
+    def get_message(self,images):
+        with torch.no_grad():
+            recon_message = self.model.get_message(images)
+        return recon_message
     
     def validate_on_batch(self, batch: list):
 

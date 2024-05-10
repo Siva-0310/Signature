@@ -107,21 +107,27 @@ class Unet(nn.Module):
         return F.mse_loss(recon_im,im)
     
 class Extractor(nn.Module):
-    def __init__(self,depth:int,channels:list,num_groups:int,im_channels:int,message_length:int,H:int,W:int) -> None:
+    def __init__(self,depth:int,channels:int,num_groups:int,im_channels:int,message_length:int,H:int,W:int) -> None:
         super(Extractor,self).__init__()
 
         self.H = H
         self.W = W
 
-        self.conv_in = nn.Conv2d(in_channels=im_channels,out_channels=channels[0],kernel_size=1)
+        self.conv_in = nn.Conv2d(in_channels=im_channels,out_channels=channels,kernel_size=1)
 
-        self.down_sample = nn.ModuleList([
-            DownSample(in_channels=channels[i],out_channels=channels[i+1],num_groups=num_groups)
-            for i in range(depth-1)
-        ])
+        # self.down_sample = nn.ModuleList([
+        #     DownSample(in_channels=channels[i],out_channels=channels[i+1],num_groups=num_groups)
+        #     for i in range(depth-1)
+        # ])
+
+        self.layer = nn.Sequential(
+            *[
+                ConvGroupSiLU(in_channels=channels,out_channels=channels,num_groups=num_groups) for _ in range(depth)
+            ]
+        )
 
         self.out_layer =  nn.Sequential(
-            ConvGroupSiLU(in_channels=channels[-1],out_channels=message_length,num_groups=1),
+            ConvGroupSiLU(in_channels=channels,out_channels=message_length,num_groups=1),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
         )
         self.message_layer = nn.Sequential(
@@ -130,8 +136,7 @@ class Extractor(nn.Module):
     def forward(self,x:torch.Tensor) -> torch.Tensor:
         out = x
         out = self.conv_in(out)
-        for i in self.down_sample:
-            out = i(out)
+        out = self.layer(out)
         out = self.out_layer(out)
         out.squeeze_(3).squeeze_(2)
         return self.message_layer(out)
