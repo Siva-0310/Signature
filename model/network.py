@@ -26,7 +26,7 @@ class Network:
         self.disc.train()
         losses = {}
 
-        with torch.no_grad():
+        with torch.enable_grad():
             self.optimizer_g.zero_grad()
 
             recon_images,noised_images,recon_messages = self.model(images,messages.clone())
