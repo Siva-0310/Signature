@@ -7,7 +7,7 @@ class Extractor(nn.Module):
     def __init__(self,channels:List[int],depth:int,message_length:int,im_channels:int,num_groups:int) -> None:
         super(Extractor,self).__init__()
         
-        self.in_layer = nn.Conv2d(in_channels=im_channels,out_channels=channels[-1],kernel_size=1)
+        self.in_layer = nn.Conv2d(in_channels=im_channels,out_channels=channels[0],kernel_size=1)
         self.layers = nn.Sequential(
             *[
                 ConvGroupSiLU(channels[i],channels[i+1],num_groups=num_groups) for i in range(depth-1)
