@@ -26,10 +26,9 @@ class EncoderDecoder(nn.Module):
         out = images
         recon_images = self.encoder(out,message)
         noised_images = self.noiser(recon_images)
-        real_preds = self.decoder(noised_images)
-        fake_preds = self.decoder(images)
+        recon_message = self.decoder(noised_images)
 
-        return recon_images,noised_images,real_preds,fake_preds
+        return recon_images,noised_images,recon_message
     
     def watermark(self,images:torch.Tensor,message:torch.Tensor) -> torch.Tensor:
         return self.encoder(images,message)
@@ -62,13 +61,13 @@ class Network:
         with torch.enable_grad():
             self.optimizer_g.zero_grad()
 
-            recon_images,noised_images,real_preds,fake_preds = self.model(images,messages)
+            recon_images,noised_images,recon_messages = self.model(images,messages)
             disc_fake_pred = self.disc(recon_images)
             disc_fake_loss = F.mse_loss(disc_fake_pred, torch.ones_like(disc_fake_pred))
             disc_part = self.train.disc * disc_fake_loss
             lpips_loss = self.train.lpips*torch.mean(self.lpips(recon_images, images))
             images_recon_loss = F.mse_loss(recon_images,images)
-            message_detect_loss = (F.binary_cross_entropy(input=real_preds,target=torch.ones_like(real_preds)) + F.binary_cross_entropy(input=fake_preds,target=torch.zeros_like(fake_preds)))/2
+            message_detect_loss = F.mse_loss(recon_messages,images)
             losses["lpips_loss"] = lpips_loss.item()
             losses["disc_part"] = disc_part.item()
             losses["message_detect_loss"] = message_detect_loss.item()
@@ -90,7 +89,7 @@ class Network:
             losses["disc_loss"] = disc_loss.item()
             losses["total"] = loss.item()
 
-            return losses,(recon_images,noised_images,real_preds,fake_preds)
+            return losses,(recon_images,noised_images,recon_messages)
 
         
     def validate_on_batch(self, batch: list):
@@ -102,13 +101,13 @@ class Network:
         losses = {}
         with torch.no_grad():
 
-            recon_images,noised_images,real_preds,fake_preds = self.model(images,messages)
+            recon_images,noised_images,recon_message = self.model(images,messages)
             disc_fake_pred = self.disc(recon_images)
             disc_fake_loss = F.mse_loss(disc_fake_pred, torch.ones_like(disc_fake_pred))
             disc_part = self.train.disc * disc_fake_loss
             lpips_loss = self.train.lpips*torch.mean(self.lpips(recon_images, images))
             images_recon_loss = F.mse_loss(recon_images,images)
-            message_detect_loss = (F.binary_cross_entropy(input=real_preds,target=torch.ones_like(real_preds)) + F.binary_cross_entropy(input=fake_preds,target=torch.zeros_like(fake_preds)))/2
+            message_detect_loss = F.mse_loss(recon_message,messages)
             losses["lpips_loss"] = lpips_loss.item()
             losses["disc_part"] = disc_part.item()
             losses["message_detect_loss"] = message_detect_loss.item()
@@ -125,7 +124,7 @@ class Network:
             losses["disc_loss"] = disc_loss.item()
             losses["total"] = loss.item()
 
-        return losses,(recon_images,noised_images,real_preds,fake_preds)
+        return losses,(recon_images,noised_images,recon_message)
     
     def save_state_dict(self,path,num):
         torch.save(self.model.state_dict(),os.path.join(path,f"model_{num}.pth"))

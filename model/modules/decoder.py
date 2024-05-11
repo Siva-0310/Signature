@@ -14,16 +14,14 @@ class Decoder(nn.Module):
                 for i in range(depth-1)
             ]
         )
-        self.avg_pool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
         self.out_layer = nn.Sequential(
-            nn.Linear(in_features=channels[-1],out_features=1),
-            nn.Sigmoid()
+            nn.GroupNorm(num_channels=channels[-1],num_groups=num_groups),
+            nn.SiLU(),
+            nn.Conv2d(in_channels=channels[-1],out_channels=1)
         )
 
     def forward(self,x:torch.Tensor) -> torch.Tensor:
         out = x
         out = self.conv_in(out)
         out = self.layers(out)
-        out = self.avg_pool(out)
-        out.squeeze_(3).squeeze_(2)
         return self.out_layer(out)
