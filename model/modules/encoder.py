@@ -25,8 +25,8 @@ class Encoder(nn.Module):
     def forward(self,x:torch.Tensor,message:torch.Tensor) -> torch.Tensor:
         out = x
         out = torch.cat([out,message],dim=1)
-        store = out.clone()
         out = self.conv_in(out)
+        store = out.clone()
         out = self.layers(out)
         out = torch.cat([out,store],dim=1)
         return self.conv_out(out)
