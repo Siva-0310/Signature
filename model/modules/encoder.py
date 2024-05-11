@@ -17,7 +17,7 @@ class Encoder(nn.Module):
         )
         
         self.conv_out = nn.Sequential(
-            nn.GroupNorm(num_groups=num_groups,num_channels=channels[0]*2),
+            nn.GroupNorm(num_groups=num_groups,num_channels=channels[-1]+channels[0]),
             nn.SiLU(),
             nn.Conv2d(in_channels=channels[0]*2,out_channels=im_channels,kernel_size=1),
         )
