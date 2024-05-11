@@ -67,7 +67,7 @@ class Network:
             disc_part = self.train.disc * disc_fake_loss
             lpips_loss = self.train.lpips*torch.mean(self.lpips(recon_images, images))
             images_recon_loss = F.mse_loss(recon_images,images)
-            message_detect_loss = F.mse_loss(recon_messages,images)
+            message_detect_loss = F.mse_loss(recon_messages,messages)
             losses["lpips_loss"] = lpips_loss.item()
             losses["disc_part"] = disc_part.item()
             losses["message_detect_loss"] = message_detect_loss.item()
