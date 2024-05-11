@@ -6,8 +6,8 @@ model:
   channels: [32,64,128,256]
   depth: 4
   message_length: 30
-  H: 16
-  W: 16
+  H: 128
+  W: 128
   noiser: identity
   num_groups: 32
 
