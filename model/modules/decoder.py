@@ -17,7 +17,7 @@ class Decoder(nn.Module):
         self.out_layer = nn.Sequential(
             nn.GroupNorm(num_channels=channels[-1],num_groups=num_groups),
             nn.SiLU(),
-            nn.Conv2d(in_channels=channels[-1],out_channels=1)
+            nn.Conv2d(in_channels=channels[-1],out_channels=1,kernel_size=1)
         )
 
     def forward(self,x:torch.Tensor) -> torch.Tensor:
