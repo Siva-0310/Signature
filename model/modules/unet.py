@@ -9,14 +9,14 @@ class Unet(nn.Module):
         self.H = H
         self.W = W
 
-        self.conv_in = nn.Conv2d(in_channels=im_channels,out_channels=channels[0],kernel_size=1)
+        self.conv_in = nn.Conv2d(in_channels=im_channels+message_length,out_channels=channels[0],kernel_size=1)
 
         self.down_sample = nn.ModuleList([
             DownSample(in_channels=channels[i],out_channels=channels[i+1],num_groups=num_groups)
             for i in range(depth-1)
         ])
 
-        self.mid = ConvGroupSiLU(in_channels=channels[-1]+message_length,out_channels=channels[-1],num_groups=1)
+        self.mid = ConvGroupSiLU(in_channels=channels[-1],out_channels=channels[-1],num_groups=1)
 
         self.up_sample = nn.ModuleList([
             UpSample(in_channels=channels[i]*2,out_channels=channels[i-1],num_groups=num_groups)
@@ -36,12 +36,12 @@ class Unet(nn.Module):
 
     def forward(self,x:torch.Tensor,message:torch.Tensor) -> torch.Tensor:
         out = x
+        out = torch.cat([out,self.info(message)],dim=1)
         out = self.conv_in(out)
         downsample = [out]
         for block in self.down_sample:
             out = block(out)
             downsample.append(out)
-        out = torch.cat([out,self.info(message)],dim=1)
         out = self.mid(out)
         for block in self.up_sample:
             out = torch.cat([out,downsample.pop()],dim=1)
