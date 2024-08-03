@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from cbam import CBAM
 from noiser import Noiser
 
 
@@ -18,11 +19,12 @@ class ConvBNRelu(nn.Module):
 
     
 class Encoder(nn.Module):
-    def __init__(self,channels:int,layers:int,msg:int,H:int,W:int) -> None:
+    def __init__(self,channels:int,layers:int,msg:int,H:int,W:int,r:int=16,attn:bool = True) -> None:
         super().__init__()
 
         self.H = H
         self.W = W
+        self.attn = attn
 
         self.in_ = ConvBNRelu(3,channels)
         self.features = nn.Sequential(
@@ -30,6 +32,8 @@ class Encoder(nn.Module):
         )
         self.msg_layer = ConvBNRelu(in_channels=channels+3+msg,out_channels=channels)
         self.out = nn.Conv2d(channels,3,kernel_size=3,padding=1)
+
+        self.cbam = CBAM(channels=channels,r=r)
 
     def forward(self,x:torch.Tensor,msg:torch.Tensor) -> torch.Tensor:
 
@@ -39,14 +43,18 @@ class Encoder(nn.Module):
         
         out = self.in_(x)
         out = self.features(out)
+        if self.attn:
+            out,_,_= self.cbam(out)
         out = torch.cat([out,x,exp_msg],dim=1)
         out = self.msg_layer(out)
         out = self.out(out)
         return out
 
 class Decoder(nn.Module):
-    def __init__(self,channels:int,layers:int,msg:int) -> None:
+    def __init__(self,channels:int,layers:int,msg:int,r:int=16,attn:bool = True) -> None:
         super().__init__()
+
+        self.attn = attn
 
         self.in_ = ConvBNRelu(3,channels)
         self.features = nn.Sequential(
@@ -60,11 +68,16 @@ class Decoder(nn.Module):
             nn.Linear(msg,msg),
             nn.Sigmoid()
         )
+
+        self.cbam = CBAM(channels=channels,r=r)
+
     
     def forward(self,x:torch.Tensor) -> torch.Tensor:
         
         out = self.in_(x)
         out = self.features(out)
+        if self.attn:
+            out,_,_ = self.cbam(out)
         out = self.msg_layer(out)
         out = out.squeeze(-1).squeeze(-1)
         out = self.out(out)
@@ -72,12 +85,12 @@ class Decoder(nn.Module):
 
 
 class Signature(nn.Module):
-    def __init__(self,channels:int,layers:int,msg:int,H:int,W:int) -> None:
+    def __init__(self,channels:int,layers:int,msg:int,H:int,W:int,r:int=16,attn:bool = True) -> None:
         super().__init__()
 
-        self.encoder = Encoder(channels,layers,msg,H,W)
+        self.encoder = Encoder(channels,layers,msg,H,W,r,attn)
         self.noiser = Noiser()
-        self.decoder = Decoder(channels,layers,msg)
+        self.decoder = Decoder(channels,layers,msg,r,attn)
     
     def forward(self,img:torch.Tensor,msg:torch.Tensor) -> torch.Tensor:
 
