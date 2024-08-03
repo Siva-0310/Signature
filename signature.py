@@ -14,7 +14,7 @@ class ConvBNRelu(nn.Module):
         ) 
 
     def forward(self,x:torch.Tensor) -> torch.Tensor:
-        return self.layer(x)
+        return self.forward(x)
 
     
 class Encoder(nn.Module):
@@ -39,7 +39,7 @@ class Encoder(nn.Module):
         
         out = self.in_(x)
         out = self.features(out)
-        out = torch.cat([out,x,exp_msg],dim=1)
+        out = torch.cat([out,x,exp_msg])
         out = self.msg_layer(out)
         out = self.out(out)
         return out
@@ -66,7 +66,6 @@ class Decoder(nn.Module):
         out = self.in_(x)
         out = self.features(out)
         out = self.msg_layer(out)
-        out = out.squeeze(-1).squeeze(-1)
         out = self.out(out)
         return out
 
@@ -86,16 +85,3 @@ class Signature(nn.Module):
         decoded_msg = self.decoder(noised_img)
 
         return encoded_img,noised_img,decoded_msg
-
-
-if __name__ == "__main__":
-
-    img = torch.rand(8, 3, 256, 256)
-    msg = torch.rand(8, 30)
-
-    sig = Signature(64, 4, 30, 256, 256)
-    encoded_img, noised_img, decoded_msg = sig(img, msg)
-
-    print("Encoded Image Shape:", encoded_img.shape)
-    print("Noised Image Shape:", noised_img.shape)
-    print("Decoded Message Shape:", decoded_msg.shape)
