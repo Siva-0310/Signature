@@ -19,68 +19,98 @@ class ConvBNRelu(nn.Module):
 
     
 class Encoder(nn.Module):
-    def __init__(self,channels:int,layers:int,msg:int,H:int,W:int,r:int=16,attn:bool = True) -> None:
+    def __init__(self, channels:int, layers:int, msg:int, H:int, W:int, r:int=16, attn:bool=True) -> None:
         super().__init__()
 
         self.H = H
         self.W = W
         self.attn = attn
 
-        self.in_ = ConvBNRelu(3,channels)
+        self.in_ = ConvBNRelu(3, channels)
         self.features = nn.Sequential(
-            *[ConvBNRelu(channels,channels) for _ in range(layers-1)]
+            *[ConvBNRelu(channels, channels) for _ in range(layers-1)]
         )
-        self.msg_layer = ConvBNRelu(in_channels=channels+3+msg,out_channels=channels)
-        self.out = nn.Conv2d(channels,3,kernel_size=3,padding=1)
+        self.msg_layer = ConvBNRelu(in_channels=channels+3+msg, out_channels=channels)
+        self.out = nn.Conv2d(channels, 3, kernel_size=3, padding=1)
 
-        self.cbam = CBAM(channels=channels,r=r)
+        self.cbam = CBAM(channels=channels, r=r)
 
-    def forward(self,x:torch.Tensor,msg:torch.Tensor) -> torch.Tensor:
-
-        exp_msg = msg.unsqueeze(-1)
-        exp_msg.unsqueeze_(-1)
-        exp_msg = exp_msg.expand(-1,-1, self.H, self.W)
+    def forward(self, x: torch.Tensor, msg: torch.Tensor) -> torch.Tensor:
+        exp_msg = msg.unsqueeze(-1).unsqueeze_(-1)
+        exp_msg = exp_msg.expand(-1, -1, self.H, self.W)
         
         out = self.in_(x)
+        assert out.numel() > 0, "Zero-element tensor found in Encoder after initial ConvBNRelu"
+
         out = self.features(out)
+        assert out.numel() > 0, "Zero-element tensor found in Encoder after features"
+
+        c, s = None, None
         if self.attn:
-            out,_,_= self.cbam(out)
-        out = torch.cat([out,x,exp_msg],dim=1)
+            out, c, s = self.cbam(out)
+            assert out.numel() > 0, "Zero-element tensor found in Encoder after CBAM"
+            assert c.numel() > 0, "Zero-element tensor found in Encoder after CBAM (c)"
+            assert s.numel() > 0, "Zero-element tensor found in Encoder after CBAM (s)"
+        
+        out = torch.cat([out, x, exp_msg], dim=1)
+        assert out.numel() > 0, "Zero-element tensor found in Encoder after torch.cat"
+
         out = self.msg_layer(out)
+        assert out.numel() > 0, "Zero-element tensor found in Encoder after msg_layer"
+
         out = self.out(out)
+        assert out.numel() > 0, "Zero-element tensor found in Encoder after final Conv2d"
+
+        if self.attn:
+            return out, c, s
         return out
 
 class Decoder(nn.Module):
-    def __init__(self,channels:int,layers:int,msg:int,r:int=16,attn:bool = True) -> None:
+    def __init__(self, channels:int, layers:int, msg:int, r:int=16, attn:bool=True) -> None:
         super().__init__()
 
         self.attn = attn
 
-        self.in_ = ConvBNRelu(3,channels)
+        self.in_ = ConvBNRelu(3, channels)
         self.features = nn.Sequential(
-            *[ConvBNRelu(channels,channels)  for _ in range(layers-1)]
+            *[ConvBNRelu(channels, channels) for _ in range(layers-1)]
         )
         self.msg_layer = nn.Sequential(
-            ConvBNRelu(channels,msg),
-            nn.AdaptiveAvgPool2d(output_size=(1,1)),
+            ConvBNRelu(channels, msg),
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)),
         )
         self.out = nn.Sequential(
-            nn.Linear(msg,msg),
+            nn.Linear(msg, msg),
             nn.Sigmoid()
         )
 
-        self.cbam = CBAM(channels=channels,r=r)
+        self.cbam = CBAM(channels=channels, r=r)
 
-    
-    def forward(self,x:torch.Tensor) -> torch.Tensor:
-        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.in_(x)
+        assert out.numel() > 0, "Zero-element tensor found in Decoder after initial ConvBNRelu"
+
         out = self.features(out)
+        assert out.numel() > 0, "Zero-element tensor found in Decoder after features"
+
+        c, s = None, None
         if self.attn:
-            out,_,_ = self.cbam(out)
+            out, c, s = self.cbam(out)
+            assert out.numel() > 0, "Zero-element tensor found in Decoder after CBAM"
+            assert c.numel() > 0, "Zero-element tensor found in Decoder after CBAM (c)"
+            assert s.numel() > 0, "Zero-element tensor found in Decoder after CBAM (s)"
+
         out = self.msg_layer(out)
+        assert out.numel() > 0, "Zero-element tensor found in Decoder after msg_layer"
+
         out = out.squeeze(-1).squeeze(-1)
+        assert out.numel() > 0, "Zero-element tensor found in Decoder after squeeze operations"
+
         out = self.out(out)
+        assert out.numel() > 0, "Zero-element tensor found in Decoder after final Linear layer"
+
+        if self.attn:
+            return out, c, s
         return out
 
 
@@ -88,25 +118,31 @@ class Signature(nn.Module):
     def __init__(self,channels:int,layers:int,msg:int,H:int,W:int,r:int=16,attn:bool = True) -> None:
         super().__init__()
 
+        self.attn = attn
+
         self.encoder = Encoder(channels,layers,msg,H,W,r,attn)
         self.noiser = Noiser()
         self.decoder = Decoder(channels,layers,msg,r,attn)
     
     def forward(self,img:torch.Tensor,msg:torch.Tensor) -> torch.Tensor:
-
-        encoded_img = self.encoder(img,msg)
-        noised_img = self.noiser(encoded_img)
-        decoded_msg = self.decoder(noised_img)
-
-        return encoded_img,noised_img,decoded_msg
+        if self.attn:
+            encoded_img,ec,es = self.encoder(img,msg)
+            noised_img = self.noiser(encoded_img)
+            decoded_msg,dc,ds = self.decoder(noised_img)
+            return encoded_img,noised_img,decoded_msg,(ec,es,dc,ds)
+        else:
+            encoded_img = self.encoder(img,msg)
+            noised_img = self.noiser(encoded_img)
+            decoded_msg = self.decoder(noised_img)
+            return encoded_img,noised_img,decoded_msg
 
 
 if __name__ == "__main__":
 
     img = torch.rand(8, 3, 256, 256)
-    msg = torch.rand(8, 30)
+    msg = torch.randint(0,2,(8, 30)).float()
 
-    sig = Signature(64, 4, 30, 256, 256)
+    sig = Signature(64, 4, 30, 256, 256,attn=False)
     encoded_img, noised_img, decoded_msg = sig(img, msg)
 
     print("Encoded Image Shape:", encoded_img.shape)
