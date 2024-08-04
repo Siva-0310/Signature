@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.transforms as T
+from signature import Signature
 
 class Noiser(nn.Module):
     def __init__(self) -> None:
@@ -13,8 +14,8 @@ class Noiser(nn.Module):
         ])
     
     def forward(self, x:torch.Tensor) -> torch.Tensor:
-        for layer in self.noise_layers:
-            x = layer(x)
+        # for layer in self.noise_layers:
+        #     x = layer(x)
         return x
 
 class GaussianNoiseLayer(nn.Module):
