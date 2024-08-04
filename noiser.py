@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torchvision.transforms as T
-from signature import Signature
 
 class Noiser(nn.Module):
     def __init__(self) -> None:
@@ -53,13 +52,3 @@ class JpegCompressionLayer(nn.Module):
             x = torch.stack([self.transform(img) for img in x])
         return x
 
-if __name__ == "__main__":
-    img = torch.rand(8, 3, 256, 256)
-    msg = torch.rand(8, 30)
-
-    sig = Signature(64, 4, 30, 256, 256)
-    encoded_img, noised_img, decoded_msg = sig(img, msg)
-
-    print("Encoded Image Shape:", encoded_img.shape)
-    print("Noised Image Shape:", noised_img.shape)
-    print("Decoded Message Shape:", decoded_msg.shape)

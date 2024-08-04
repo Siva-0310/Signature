@@ -69,6 +69,7 @@ class Decoder(nn.Module):
         )
         self.out = nn.Sequential(
             nn.Linear(msg,msg),
+            nn.Sigmoid()
         )
 
         self.cbam = CBAM(channels=channels,r=r)
@@ -90,14 +91,14 @@ class Decoder(nn.Module):
 
 
 class Signature(nn.Module):
-    def __init__(self,channels:int,layers:int,msg:int,H:int,W:int,r:int=16,attn:bool = True) -> None:
+    def __init__(self,channels:int,enc:int,dec:int,msg:int,H:int,W:int,r:int=16,attn:bool = True) -> None:
         super().__init__()
 
         self.attn = attn
 
-        self.encoder = Encoder(channels,layers,msg,H,W,r,attn)
+        self.encoder = Encoder(channels,enc,msg,H,W,r,attn)
         self.noiser = Noiser()
-        self.decoder = Decoder(channels,layers,msg,r,attn)
+        self.decoder = Decoder(channels,dec,msg,r,attn)
     
     def forward(self,img:torch.Tensor,msg:torch.Tensor) -> torch.Tensor:
         if self.attn:
