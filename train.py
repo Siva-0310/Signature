@@ -73,7 +73,7 @@ class Model:
 
             with tqdm(total=len(train_loader), desc=f"Epoch {epoch + 1}/{self.config.epochs}", unit="batch") as pbar:
                 for imgs, _ in train_loader:
-                    msgs = torch.randint(0,2,(imgs.size[0],self.config.msg)).float()
+                    msgs = torch.randint(0,2,(imgs.size()[0],self.config.msg)).float()
                     loss, img_loss, msg_loss = self.train_on_batch(imgs, msgs)
                     train_loss += loss
                     train_img_loss += img_loss.item()
