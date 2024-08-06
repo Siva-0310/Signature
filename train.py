@@ -1,4 +1,5 @@
 import torch
+import pandas as pd
 import torch.nn.functional as F
 from tqdm import tqdm
 from signature import Signature
@@ -68,12 +69,17 @@ class Model:
         return loss.item(),img_loss,msg_loss
     
     def train_model(self, train_loader: DataLoader, val_loader: DataLoader):
-        for epoch in range(self.config.epochs):
-            train_loss, train_img_loss, train_msg_loss = 0.0, 0.0, 0.0
+        # Initialize lists to collect data for CSV files
+        train_losses = []
+        val_losses = []
 
+        for epoch in range(self.config.epochs):
+            # Training phase
+            self.model.train()
+            train_loss, train_img_loss, train_msg_loss = 0.0, 0.0, 0.0
             with tqdm(total=len(train_loader), desc=f"Epoch {epoch + 1}/{self.config.epochs}", unit="batch") as pbar:
                 for imgs, _ in train_loader:
-                    msgs = torch.randint(0,2,(imgs.size()[0],self.config.msg)).float()
+                    msgs = torch.randint(0, 2, (imgs.size()[0], self.config.msg)).float()
                     loss, img_loss, msg_loss = self.train_on_batch(imgs, msgs)
                     train_loss += loss
                     train_img_loss += img_loss.item()
@@ -83,12 +89,15 @@ class Model:
                                       "Train Message Loss": train_msg_loss / (pbar.n + 1)})
                     pbar.update(1)
 
+            # Calculate average losses for the epoch
             train_loss /= len(train_loader)
             train_img_loss /= len(train_loader)
             train_msg_loss /= len(train_loader)
+            train_losses.append([epoch + 1, train_loss, train_img_loss, train_msg_loss])
 
+            # Validation phase
+            self.model.eval()
             val_loss, val_img_loss, val_msg_loss = 0.0, 0.0, 0.0
-
             with tqdm(total=len(val_loader), desc="Validation", unit="batch") as pbar:
                 for imgs, msgs in val_loader:
                     loss, img_loss, msg_loss = self.evaluate_on_batch(imgs, msgs)
@@ -100,13 +109,34 @@ class Model:
                                       "Val Message Loss": val_msg_loss / (pbar.n + 1)})
                     pbar.update(1)
 
+            # Calculate average losses for the epoch
             val_loss /= len(val_loader)
             val_img_loss /= len(val_loader)
             val_msg_loss /= len(val_loader)
+            val_losses.append([epoch + 1, val_loss, val_img_loss, val_msg_loss])
 
             print(f"Epoch {epoch + 1}/{self.config.epochs}")
             print(f"Train Loss: {train_loss:.4f}, Train Image Loss: {train_img_loss:.4f}, Train Message Loss: {train_msg_loss:.4f}")
             print(f"Val Loss: {val_loss:.4f}, Val Image Loss: {val_img_loss:.4f}, Val Message Loss: {val_msg_loss:.4f}")
+
+        # Save losses to CSV files using Pandas
+        self._save_losses_to_csv("train_losses.csv", train_losses)
+        self._save_losses_to_csv("val_losses.csv", val_losses)
+
+    def _save_losses_to_csv(self, filename: str, losses: list):
+        # Convert the list of losses to a DataFrame
+        df = pd.DataFrame(losses, columns=["Epoch", "Loss", "Image Loss", "Message Loss"])
+        # Save the DataFrame to a CSV file
+        df.to_csv(filename, index=False)
+        
+    
+    def save(self, path: str):
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'config': self.config,
+        }, path)
+    
 
 if __name__ == "__main__":
 
